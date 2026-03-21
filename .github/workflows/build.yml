@@ -194,7 +194,7 @@ jobs:
           
           make O=out gki_defconfig vendor/kalama_GKI.config vendor/oplus/kalama_GKI.config vendor/debugfs.config
           
-          make -j2 O=out Image
+          make -j$(nproc) O=out Image
 
       - name: Make AnyKernel3
         run: |
