@@ -41,6 +41,7 @@ on:
           - KernelSU-Next
           - KernelSU-Next-with-susfs
           - KowSU
+          - KernelSU-by-xx
           - ReSukiSU
           - ReSukiSU-with-susfs
           
@@ -150,7 +151,11 @@ jobs:
             "KowSU")
                curl -LSs "https://raw.githubusercontent.com/KOWX712/KernelSU/main/kernel/setup.sh" | bash -s master
               ;;
-
+              
+            "KernelSU-by-xx")
+              curl -LSs "https://raw.githubusercontent.com/backslashxx/KernelSU/refs/heads/master/kernel/setup.sh" | bash -s master
+              ;;
+              
             "KernelSU-Next")
               curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s dev
               ;;
@@ -185,6 +190,10 @@ jobs:
           touch ./.scmversion
           if [[ "${{inputs.ksu_type}}" != "None" ]]; then
             echo "CONFIG_TMPFS_XATTR=y" >> arch/arm64/configs/gki_defconfig
+          fi
+
+          if [[ "${{ inputs.ksu_type }}" == "KernelSU-by-xx" ]]; then
+            echo "CONFIG_KSU_TAMPER_SYSCALL_TABLE=y" >> out/.config
           fi
           
           make O=out vendor/lahaina-qgki_defconfig
