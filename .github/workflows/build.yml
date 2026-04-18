@@ -140,7 +140,7 @@ jobs:
   Kernel_CI:
     env:
         GH_TOKEN: ${{ github.token }}
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     permissions:
       contents: write
       actions: read
@@ -211,6 +211,15 @@ jobs:
               
           esac
           
+          if [[ "${{ inputs.enable_gcc }}" == "true" ]]; then
+
+            curl -LO https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/+archive/refs/heads/android12L-release.tar.gz
+            mkdir -p toolchains/arm-linux-androideabi
+            tar -xf android12L-release.tar.gz -C toolchains/arm-linux-androideabi
+
+          fi
+
+
           mkdir -p toolchains/${{ inputs.clang_version }}
           
           tar -xf "${{ inputs.clang_version }}.tar.gz" -C "toolchains/${{ inputs.clang_version }}"
@@ -298,7 +307,7 @@ jobs:
           if [[ "${{ inputs.enable_gcc }}" == "true" ]]; then
 
             export CROSS_COMPILE=aarch64-linux-gnu-
-            export CROSS_COMPILE=arm-linux-androideabi-
+            export CROSS_COMPILE=${GITHUB_WORKSPACE}/toolchains/arm-linux-androideabi/bin/arm-linux-androideabi-
 
           fi
 
@@ -387,7 +396,7 @@ jobs:
           if [[ "${{ inputs.enable_gcc }}" == "true" ]]; then
 
             export CROSS_COMPILE=aarch64-linux-gnu-
-            export CROSS_COMPILE=arm-linux-androideabi-
+            export CROSS_COMPILE=${GITHUB_WORKSPACE}/toolchains/arm-linux-androideabi/bin/arm-linux-androideabi-
 
           fi
 
