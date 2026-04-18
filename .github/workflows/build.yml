@@ -3,6 +3,28 @@ name: Compile Kernel
 on:
   workflow_dispatch:
     inputs:
+      brand:
+        description: select your brand
+        required: true
+        type: choice
+        default: oneplus
+        options:
+          - oneplus
+          - xiaomi
+          - sony
+
+      soc:
+        description: Type your soc
+        required: true
+        type: string
+        default: "sm8550"
+
+      has_modules_repo:
+        description: if ur kernel has modules repo
+        required: true
+        type: boolean
+        default: true
+
       clang_version:
         description: Type the clang version of ur kernel
         required: true
@@ -17,7 +39,7 @@ on:
           - clang-r563880c  #lineage-23.2 in android16-qpr3-release
           
       kernel_source:
-        description: Kernel Source Code
+        description: Kernel repo's org/user on github
         required: true
         type: choice
         options:
@@ -31,6 +53,32 @@ on:
         type: string
         default: ""
         
+      kernel_configs:
+        description: type ur kernel configs(default is gki_defconfig vendor/kalama_GKI.config vendor/oplus/kalama_GKI.config vendor/debugfs.config)
+        required: true
+        type: choice
+        options:
+          - Manual-Type
+          - oplus-sm8150-los
+          - oplus-sm8150-yaap
+          - oplus-sm8250-los
+          - oplus-sm8350-los
+          - oplus-sm8550-los
+          - oplus-sm8650-los
+
+
+      kernel_configs_manual:
+        description: if u selected Manual-Type in previous, manually type ur kernel configs here.
+        required: false
+        type: string
+        default: ""
+
+      enable_tmpfs-xattr:
+        description: u can enable this if ur kernel has no CONFIG_TMPFS_XATTR=y
+        required: true
+        type: boolean
+        default: false
+
       ksu_type:
         description: "KernelSU Version"
         required: true
@@ -41,14 +89,39 @@ on:
           - KernelSU-Next
           - KernelSU-Next-with-susfs
           - KowSU
+          - KernelSU-by-xx
           - ReSukiSU
           - ReSukiSU-with-susfs
-          
+
+      susfs-gki:
+        description: select ur kernel version(for gki)
+        required: true
+        type: choice
+        default: None
+        options:
+          - None
+          - android12-5.10
+          - android13-5.10
+          - android13-5.15
+          - android14-5.15
+          - android14-6.1
+          - android15-6.6
+          - android16-6.12
+
+      susfs-nongki:
+        description: select ur kernel version(for nongki)
+        required: true
+        default: None
+        options:
+          - None
+          - 4.9
+          - 4.14
+          - 4.19
+          - 5.4
 jobs:
   Kernel_CI:
     env:
         GH_TOKEN: ${{ github.token }}
-        SOC: sm8550
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -81,8 +154,13 @@ jobs:
           
       - name: Clone Kernel Source
         run: |
-          git clone --depth=1 -b ${{ inputs.kernel_branch }} https://github.com/${{ inputs.kernel_source }}/android_kernel_oneplus_${SOC}.git ${SOC}
-          git clone --depth=1 -b ${{ inputs.kernel_branch }} https://github.com/${{ inputs.kernel_source }}/android_kernel_oneplus_${SOC}-modules.git ${SOC}-modules
+          git clone --depth=1 -b ${{ inputs.kernel_branch }} https://github.com/${{ inputs.kernel_source }}/android_kernel_${{ inputs.brand }}_${{ inputs.soc }}.git ${{ inputs.soc }}
+
+          if [[ "${{ inputs.has_modules_repo }}" == "true" ]]; then
+
+            git clone --depth=1 -b ${{ inputs.kernel_branch }} https://github.com/${{ inputs.kernel_source }}/android_kernel_${{ inputs.brand }}_${{ inputs.soc }}-modules.git ${{ inputs.soc }}-modules
+
+          fi
 
       - name: Download AOSP Clang
         run: |
@@ -118,38 +196,25 @@ jobs:
           
           tar -xf "${{ inputs.clang_version }}.tar.gz" -C "toolchains/${{ inputs.clang_version }}"
 
-      - name: Compile Kernel
+      - name: include ksu and susfs
         run: |
-          CLANG_ROOT="${GITHUB_WORKSPACE}/toolchains/${{ inputs.clang_version }}/bin"
-          export PATH="${CLANG_ROOT}:$PATH"
-          export ARCH=arm64
-          export SUBARCH=arm64
-          export LLVM=1
-          export LLVM_IAS=1
-          export CC="${CLANG_ROOT}/clang"
-          export CXX="${CLANG_ROOT}/clang++"
-          export HOSTCC="${CLANG_ROOT}/clang"
-          export HOSTCXX="${CLANG_ROOT}/clang++"
-          export LD="${CLANG_ROOT}/ld.lld"
-          export AR="${CLANG_ROOT}/llvm-ar"
-          export NM="${CLANG_ROOT}/llvm-nm"
-          export OBJCOPY="${CLANG_ROOT}/llvm-objcopy"
-          export OBJDUMP="${CLANG_ROOT}/llvm-objdump"
-          export STRIP="${CLANG_ROOT}/llvm-strip"
-
-          cd ${SOC}
+          cd ${{ inputs.soc }}
 
           case "${{ inputs.ksu_type }}" in
-          
+
             "None")
               ;;
-              
+
             "Official-KernelSU")
               curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s main
               ;;
-              
+
             "KowSU")
                curl -LSs "https://raw.githubusercontent.com/KOWX712/KernelSU/main/kernel/setup.sh" | bash -s master
+              ;;
+
+            "KernelSU-by-xx")
+              curl -LSs "https://raw.githubusercontent.com/backslashxx/KernelSU/refs/heads/master/kernel/setup.sh" | bash -s master
               ;;
 
             "KernelSU-Next")
@@ -163,35 +228,138 @@ jobs:
             "ReSukiSU"|"ReSukiSU-with-susfs")
               curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash -s main
               ;;
-              
+
           esac
-          
-          if [[ "${{ inputs.ksu_type }}" == *susfs ]]; then
-            git clone -b gki-android13-5.15 https://gitlab.com/simonpunk/susfs4ksu.git susfs
-            cd susfs
-            cp ./kernel_patches/50_add_susfs_in_gki-android13-5.15.patch ..
-            cp ./kernel_patches/fs/* ../fs/
-            cp ./kernel_patches/include/linux/* ../include/linux/
-            cd ..
-            patch -p1 < 50_add_susfs_in_gki-android13-5.15.patch
-            echo "CONFIG_KSU_SUSFS=y" >> arch/arm64/configs/gki_defconfig
-            echo "CONFIG_KSU_SUSFS_SUS_PATH=y" >> arch/arm64/configs/gki_defconfig
-            echo "CONFIG_KSU_SUSFS_SUS_MOUNT=y" >> arch/arm64/configs/gki_defconfig
-            echo "CONFIG_KSU_SUSFS_SUS_KSTAT=y" >> arch/arm64/configs/gki_defconfig
-            echo "CONFIG_KSU_SUSFS_SPOOF_UNAME=n" >> arch/arm64/configs/gki_defconfig
-            echo "CONFIG_KSU_SUSFS_ENABLE_LOG=y" >> arch/arm64/configs/gki_defconfig
-            echo "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y" >> arch/arm64/configs/gki_defconfig
-            echo "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y" >> arch/arm64/configs/gki_defconfig
-            echo "CONFIG_KSU_SUSFS_SUS_MAP=y" >> arch/arm64/configs/gki_defconfig
+
+          if [[ "${{ inputs.ksu_type }}" == *susfs* ]]; then
+
+            if [[ "${{ inputs.susfs-gki }}" == "None" && "${{ inputs.susfs-nongki }}" == "None" ]]; then
+
+              echo "skip susfs"
+
+            elif [[ "${{ inputs.susfs-gki }}" != "None" && "${{ inputs.susfs-nongki }}" != "None" ]]; then
+
+              echo "what do you mean???, why selected susfs for gki and nongki at the same time"
+              exit 1
+
+            elif [[ "${{ inputs.susfs-gki }}" != "None" ]]; then
+
+              git clone -b gki-${{ inputs.susfs-gki }} https://gitlab.com/simonpunk/susfs4ksu.git susfs
+              cd susfs
+              cp ./kernel_patches/50_add_susfs_in_gki-${{ inputs.susfs-gki }}.patch ..
+              cp ./kernel_patches/fs/* ../fs/
+              cp ./kernel_patches/include/linux/* ../include/linux/
+              cd ..
+
+              patch -p1 < 50_add_susfs_in_gki-${{ inputs.susfs-gki }}.patch
+
+            elif [[ "${{ inputs.susfs-nongki }}" != "None" ]]; then
+
+              curl -Lo susfs.patch https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/refs/heads/mainline/Patches/Patch/susfs_patch_to_${{ inputs.susfs-nongki }}.patch
+              curl -Lo inline.sh https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/refs/heads/mainline/Patches/susfs_inline_hook_patches.sh
+
+              patch -p1 < susfs.patch
+              bash inline.sh
+
+            fi
+
           fi
-          
+
           touch ./.scmversion
-          if [[ "${{inputs.ksu_type}}" != "None" ]]; then
-            echo "CONFIG_TMPFS_XATTR=y" >> arch/arm64/configs/gki_defconfig
+
+      - name: Make Kernel Configs
+        run: |
+          CLANG_ROOT="${GITHUB_WORKSPACE}/toolchains/${{ inputs.clang_version }}/bin"
+          export PATH="${CLANG_ROOT}:$PATH"
+          export ARCH=arm64
+          export SUBARCH=arm64
+          export LLVM=1
+          export LLVM_IAS=1
+
+          cd ${{ inputs.soc }}
+
+          if [[ "${{ inputs.kernel_configs }}" == "Manual-Type" ]]; then
+
+            if [[ -z "${{ inputs.kernel_configs_manual }}" ]]; then
+
+              echo "U didnt type configs"
+              exit 1
+
+            fi
+
+            make O=out ${{ inputs.kernel_configs_manual }}
+
+          else
+
+            case "${{ inputs.kernel_configs }}" in
+
+              "oplus-sm8150-los")
+              make O=out vendor/sm8150-perf_defconfig vendor/oplus.config
+              ;;
+
+              "oplus-sm8150-yaap")
+              make O=out gulch_defconfig vendor/debugfs.config
+              ;;
+
+              "oplus-sm8250-los")
+              make O=out vendor/kona-perf_defconfig vendor/oplus.config
+              ;;
+
+              "oplus-sm8350-los")
+              make O=out vendor/lahaina-qgki_defconfig
+              ;;
+
+              "oplus-sm8550-los")
+              make O=out gki_defconfig vendor/kalama_GKI.config vendor/oplus/kalama_GKI.config vendor/debugfs.config
+              ;;
+
+              "oplus-sm8650-los")
+              make O=out gki_defconfig vendor/pineapple_GKI.config vendor/oplus/pineapple_GKI.config
+              ;;
+
+            esac
+
           fi
-          
-          make O=out gki_defconfig vendor/kalama_GKI.config vendor/oplus/kalama_GKI.config vendor/debugfs.config
-          
+
+          if [[ "${{ inputs.enable_tmpfs-xattr }}" == "true" ]]; then
+
+            sed -i '/CONFIG_TMPFS_XATTR/d' out/.config
+            echo "CONFIG_TMPFS_XATTR=y" >> out/.config
+
+          fi
+
+          if [[ "${{ inputs.ksu_type }}" == "KernelSU-by-xx" ]]; then
+
+            echo "CONFIG_KSU_TAMPER_SYSCALL_TABLE=y" >> out/.config
+
+          fi
+
+          if [[ "${{ inputs.ksu_type }}" == *susfs* ]]; then
+
+            echo "CONFIG_KSU_SUSFS=y" >> out/.config
+            echo "CONFIG_KSU_SUSFS_SUS_PATH=y" >> out/.config
+            echo "CONFIG_KSU_SUSFS_SUS_MOUNT=y" >> out/.config
+            echo "CONFIG_KSU_SUSFS_SUS_KSTAT=y" >> out/.config
+            echo "CONFIG_KSU_SUSFS_SPOOF_UNAME=n" >> out/.config
+            echo "CONFIG_KSU_SUSFS_ENABLE_LOG=y" >> out/.config
+            echo "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y" >> out/.config
+            echo "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y" >> out/.config
+            echo "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y" >> out/.config
+            echo "CONFIG_KSU_SUSFS_SUS_MAP=y" >> out/.config
+
+          fi
+
+      - name: Build Kernel Image
+        run: |
+          CLANG_ROOT="${GITHUB_WORKSPACE}/toolchains/${{ inputs.clang_version }}/bin"
+          export PATH="${CLANG_ROOT}:$PATH"
+          export ARCH=arm64
+          export SUBARCH=arm64
+          export LLVM=1
+          export LLVM_IAS=1
+
+          cd ${{ inputs.soc }}
+
           make -j$(nproc) O=out Image
 
       - name: Make AnyKernel3
@@ -199,15 +367,17 @@ jobs:
           ZIP_NAME="${{ inputs.ksu_type }}_$(date -u +"%Y%m%d_%H%M")"
           git clone https://github.com/Kernel-SU/AnyKernel3.git
 
-          cp ${SOC}/out/arch/arm64/boot/Image AnyKernel3/Image
-          cp ${SOC}/out/arch/arm64/boot/Image ./Image
+          cp ${{ inputs.soc }}/out/arch/arm64/boot/Image AnyKernel3/Image
+          cp ${{ inputs.soc }}/out/arch/arm64/boot/Image ./Image
           cd AnyKernel3
+
+          sed -i "s|ksu_supported=false|ksu_supported=true|" anykernel.sh
 
           zip -r9 ../"${ZIP_NAME}.zip" * -x .git
 
       - name: Create GitHub Release
         run: |
-          REL_NAME="${SOC}_${{ inputs.kernel_source }}-${{ inputs.kernel_branch }}_${{ inputs.ksu_type }}_$(date -u +"%Y%m%d_%H%M")"
+          REL_NAME="${{ inputs.soc }}_${{ inputs.kernel_source }}-${{ inputs.kernel_branch }}_${{ inputs.ksu_type }}_$(date -u +"%Y%m%d_%H%M")"
           cd ${GITHUB_WORKSPACE}
           ZIP_FILE=$(ls *.zip)
           gh release create "$REL_NAME" --title "$REL_NAME" --notes "" "${ZIP_FILE}" Image
