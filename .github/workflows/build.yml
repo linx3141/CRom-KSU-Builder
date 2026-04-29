@@ -135,6 +135,12 @@ on:
         required: true
         type: boolean
         default: false
+      
+      enable_gcc_32bits:
+        description: "Enable-GCC-32Bits: Enable the 32Bits GCC support"
+        required: true
+        type: boolean
+        default: false
 
       fuck_modules_sig_protect:
         description: "Fuck-Modules-Sig-Protect: FUCK MODULES SIG Protectttt"
@@ -226,6 +232,15 @@ jobs:
           
           tar -xf "${{ inputs.clang_version }}.tar.gz" -C "toolchains/${{ inputs.clang_version }}"
 
+          if [[ "${{ inputs.enable_gcc_32bits }}" == "true" ]]; then
+
+            curl -LO https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/+archive/refs/heads/android12L-release.tar.gz
+            mkdir -p toolchains/arm-linux-androideabi
+            tar -xf android12L-release.tar.gz -C toolchains/arm-linux-androideabi
+         
+          fi
+
+
       - name: include ksu and susfs
         run: |
           cd ${{ inputs.soc }}
@@ -309,6 +324,7 @@ jobs:
           if [[ "${{ inputs.enable_gcc }}" == "true" ]]; then
 
             export CROSS_COMPILE=aarch64-linux-gnu-
+            export CROSS_COMPILE_ARM32=${GITHUB_WORKSPACE}/toolchains/arm-linux-androideabi/bin/arm-linux-androideabi-
 
           fi
 
@@ -413,6 +429,7 @@ jobs:
           if [[ "${{ inputs.enable_gcc }}" == "true" ]]; then
 
             export CROSS_COMPILE=aarch64-linux-gnu-
+            CROSS_COMPILE_ARM32=${GITHUB_WORKSPACE}/toolchains/arm-linux-androideabi/bin/arm-linux-androideabi-
 
           fi
 
