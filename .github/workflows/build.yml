@@ -36,6 +36,7 @@ on:
         description: "Kernel-Source: Kernel repo's org/user on github"
         required: true
         type: choice
+        default: LineageOS
         options:
           - Manual-Type
           - LineageOS
