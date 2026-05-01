@@ -206,6 +206,41 @@ jobs:
           cpio \
           gcc-aarch64-linux-gnu
           
+      - name: Save options
+        run: |
+          echo "brand:${{ inputs.brand }}"
+          echo "soc:${{ inputs.soc }}"
+          echo "clang_version:${{ inputs.clang_version }}"
+          echo "kernel_source:${{ inputs.kernel_source }}"
+          echo "kernel_source_manual:${{ inputs.kernel_source_manual }}"
+          echo "kernel_source_format:${{ inputs.kernel_source_format }}"
+          echo "ksu_type:${{ inputs.ksu_type }}"
+          echo "susfs-gki:${{ inputs.susfs-gki }}"
+          echo "susfs-nongki:${{ inputs.susfs-nongki }}"
+          echo "droidspaces:${{ inputs.droidspaces }}"
+          echo "has_modules_repo:${{ inputs.has_modules_repo }}"
+          echo "enable_tmpfs-xattr:${{ inputs.enable_tmpfs-xattr }}"
+          echo "enable_gcc:${{ inputs.enable_gcc }}"
+          echo "enable_gcc_32bits:${{ inputs.enable_gcc_32bits }}"
+          echo "fuck_modules_sig_protect:${{ inputs.fuck_modules_sig_protect }}"
+          echo "fuck_werror:${{ inputs.fuck_werror }}"
+
+          echo "brand:${{ inputs.brand }}" >> options.txt
+          echo "soc:${{ inputs.soc }}" >> options.txt
+          echo "clang_version:${{ inputs.clang_version }}" >> options.txt
+          echo "kernel_source:${{ inputs.kernel_source }}" >> options.txt
+          echo "kernel_source_manual:${{ inputs.kernel_source_manual }}" >> options.txt
+          echo "kernel_source_format:${{ inputs.kernel_source_format }}" >> options.txt
+          echo "ksu_type:${{ inputs.ksu_type }}" >> options.txt
+          echo "susfs-gki:${{ inputs.susfs-gki }}" >> options.txt
+          echo "susfs-nongki:${{ inputs.susfs-nongki }}" >> options.txt
+          echo "droidspaces:${{ inputs.droidspaces }}" >> options.txt
+          echo "has_modules_repo:${{ inputs.has_modules_repo }}" >> options.txt
+          echo "enable_tmpfs-xattr:${{ inputs.enable_tmpfs-xattr }}" >> options.txt
+          echo "enable_gcc:${{ inputs.enable_gcc }}" >> options.txt
+          echo "enable_gcc_32bits:${{ inputs.enable_gcc_32bits }}" >> options.txt
+          echo "fuck_modules_sig_protect:${{ inputs.fuck_modules_sig_protect }}" >> options.txt
+          echo "fuck_werror:${{ inputs.fuck_werror }}" >> options.txt
       - name: Clone Kernel Source
         run: |
           if [[ "${{ inputs.kernel_source }}" == "Manual-Type" ]]; then
@@ -313,7 +348,7 @@ jobs:
             curl -Lo droidspaces.patch https://raw.githubusercontent.com/ravindu644/Droidspaces-OSS/refs/heads/main/Documentation/resources/kernel-patches/GKI/below-kernel-6.12/001.GKI-below-6.12-fix_sysvipc_kabi_6_7_8.patch
             patch -p1 < droidspaces.patch
 
-            cp ${{ github.workspace }}/configs/droidspaces-gki.config arch/arm64/configs/vendor/droidspaces.config
+            cp ${GITHUB_WORKSPACE}/configs/droidspaces-gki.config arch/arm64/configs/vendor/droidspaces.config
 
           elif [[ "${{ inputs.droidspaces }}" == "3.18-4.19" ]]; then
 
@@ -323,7 +358,7 @@ jobs:
             curl -Lo patch2.patch https://raw.githubusercontent.com/ravindu644/Droidspaces-OSS/refs/heads/main/Documentation/resources/kernel-patches/non-GKI/02.fix_restore%20cgroup%20file%20prefix%20handling%20.patch || exit 1
             patch -p1 < patch2.patch
 
-            cp ${{ github.workspace }}/configs/droidspaces-nongki.config arch/arm64/configs/vendor/droidspaces.config
+            cp ${GITHUB_WORKSPACE}/configs/droidspaces-nongki.config arch/arm64/configs/vendor/droidspaces.config
 
           fi
 
@@ -503,7 +538,7 @@ jobs:
 
           cd ${{ inputs.soc }} || exit 1
 
-          make -j$(nproc) O=out Image
+          make -j$(nproc) O=out Image 2>&1 | tee ${GITHUB_WORKSPACE}/build.log
 
       - name: Make AnyKernel3
         run: |
@@ -523,4 +558,4 @@ jobs:
           REL_NAME="${{ inputs.soc }}_${{ inputs.kernel_source }}-${{ inputs.kernel_branch }}_${{ inputs.ksu_type }}_$(date -u +"%Y%m%d_%H%M")"
           cd ${GITHUB_WORKSPACE} || exit 1
           ZIP_FILE=$(ls *.zip)
-          gh release create "$REL_NAME" --title "$REL_NAME" --notes "" "${ZIP_FILE}" Image
+          gh release create "$REL_NAME" --title "$REL_NAME" --notes "" "${ZIP_FILE}" Image build.log
