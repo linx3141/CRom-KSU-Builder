@@ -171,6 +171,11 @@ on:
         required: true
         type: boolean
         default: false
+      enable_my_own_susfs_patch:
+        description: "fuck susfs: fuck susfs"
+        required: true
+        type: boolean
+        default: false
 
 jobs:
   Kernel_CI:
@@ -224,6 +229,7 @@ jobs:
           echo "enable_gcc_32bits:${{ inputs.enable_gcc_32bits }}"
           echo "fuck_modules_sig_protect:${{ inputs.fuck_modules_sig_protect }}"
           echo "fuck_werror:${{ inputs.fuck_werror }}"
+          echo "enable_my_own_susfs_patch:${{ inputs.enable_my_own_susfs_patch }}"
 
           echo "brand:${{ inputs.brand }}" >> options.txt
           echo "soc:${{ inputs.soc }}" >> options.txt
@@ -241,6 +247,7 @@ jobs:
           echo "enable_gcc_32bits:${{ inputs.enable_gcc_32bits }}" >> options.txt
           echo "fuck_modules_sig_protect:${{ inputs.fuck_modules_sig_protect }}" >> options.txt
           echo "fuck_werror:${{ inputs.fuck_werror }}" >> options.txt
+          echo "enable_my_own_susfs_patch:${{ inputs.enable_my_own_susfs_patch }}" >> options.txt
       - name: Clone Kernel Source
         run: |
           if [[ "${{ inputs.kernel_source }}" == "Manual-Type" ]]; then
@@ -377,12 +384,22 @@ jobs:
 
               git clone -b gki-${{ inputs.susfs-gki }} https://gitlab.com/simonpunk/susfs4ksu.git susfs || exit 1
               cd susfs || exit 1
-              cp ./kernel_patches/50_add_susfs_in_gki-${{ inputs.susfs-gki }}.patch ..
+              cp ./kernel_patches/50_add_susfs_in_gki-${{ inputs.susfs-gki }}.patch ../susfs.patch
               cp ./kernel_patches/fs/* ../fs/
               cp ./kernel_patches/include/linux/* ../include/linux/
               cd .. || exit 1
 
-              patch -p1 < 50_add_susfs_in_gki-${{ inputs.susfs-gki }}.patch
+              if [[ "${{ $inputs.enable_my_own_susfs_patch }}" == "true" ]]; then
+
+                if [[ "${{ $inputs.susfs-gki }}" == "android13-5.15" ]]; then
+
+                  patch -p1 < ${GITHUB_WORKSPACE}/patches/fix_task_mmu_5.15.patch
+
+                fi
+
+              fi
+
+              patch -p1 < susfs.patch || true
 
             elif [[ "${{ inputs.susfs-nongki }}" != "None" ]]; then
 
@@ -558,4 +575,4 @@ jobs:
           REL_NAME="${{ inputs.soc }}_${{ inputs.kernel_source }}-${{ inputs.kernel_branch }}_${{ inputs.ksu_type }}_$(date -u +"%Y%m%d_%H%M")"
           cd ${GITHUB_WORKSPACE} || exit 1
           ZIP_FILE=$(ls *.zip)
-          gh release create "$REL_NAME" --title "$REL_NAME" --notes "" "${ZIP_FILE}" Image build.log
+          gh release create "$REL_NAME" --title "$REL_NAME" --notes "" "${ZIP_FILE}" Image build.log options.txt
